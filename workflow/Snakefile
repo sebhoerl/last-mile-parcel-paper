@@ -1,0 +1,375 @@
+import yaml, json, copy, pathlib
+
+# Configuration
+with open("resources/networks.yml") as f:
+    network_configurations = yaml.load(f, yaml.SafeLoader)["networks"]
+
+with open("resources/populations.yml") as f:
+    population_configurations = yaml.load(f, yaml.SafeLoader)["populations"]
+
+with open("resources/demand.yml") as f:
+    demand_configurations = yaml.load(f, yaml.SafeLoader)["demand"]
+
+with open("resources/operators.yml") as f:
+    operator_configurations = yaml.load(f, yaml.SafeLoader)["operators"]
+
+with open("resources/vehicle_types.yml") as f:
+    vehicle_type_configurations = yaml.load(f, yaml.SafeLoader)["vehicle_types"]
+
+with open("resources/scenarios.yml") as f:
+    scenario_configurations = yaml.load(f, yaml.SafeLoader)["scenarios"]
+
+reference_demand = "baseline_2019"
+
+# Extract Metropolitan region
+rule extract_metropole:
+    input:
+        metropole="resources/spatial/metropole.csv",
+        iris="resources/external/iris/CONTOURS-IRIS_2-1__SHP__FRA_2022-01-01.7z"
+    output: "results/metropole.gpkg"
+    resources: mem_mb=1024
+    notebook: "notebooks/Extract Metropole.ipynb"
+
+def calibrate_parcel_model_inputs(wildcards):
+    demand_configuration = demand_configurations[reference_demand]
+    population_configuration = population_configurations[demand_configuration["population"]]
+
+    population_prefix = "resources/external/{}/{}".format(
+        demand_configuration["population"], population_configuration["prefix"])
+
+    return {
+        "persons": "{}persons.csv".format(population_prefix),
+        "homes": "{}homes.gpkg".format(population_prefix),
+        "metropole": "results/metropole.gpkg"
+    }
+
+# Calibrate the parcel model based on the limited area of the ADM survey
+rule calibrate_parcel_model:
+    input: unpack(calibrate_parcel_model_inputs)
+    output: "results/parcel_model.parquet"
+    resources: mem_mb=4096
+    notebook: "notebooks/Calibrate Parcels.ipynb"
+
+# Make polygon for cutting the study area
+rule make_polygon:
+    input: "resources/spatial/study_area.gpkg"
+    output: "results/network/study_area.poly"
+    resources: mem_mb=1024
+    notebook: "notebooks/Make Polygon.ipynb"
+
+# Extract OSM data for the area
+rule cut_network:
+    input:
+        polygon="results/network/study_area.poly",
+        osm="resources/external/osm/rhone-alpes-220101.osm.pbf"
+    output: "results/network/network.osm"
+    resources: mem_mb=1024
+    script: "scripts/cut_network.sh"
+
+# Prepare networks
+def prepare_network_inputs(wildcards):
+    network_configuration = network_configurations[wildcards["network"]]
+    inputs = { "osm": "results/network/network.osm" }
+
+    if "excluded_area" in network_configuration:
+        inputs["excluded_area"] = "resources/spatial/{}.gpkg".format(
+            network_configuration["excluded_area"])
+
+    return inputs
+
+def prepare_network_params(wildcards):
+    network_configuration = network_configurations[wildcards["network"]]
+    params = {}
+
+    if "excluded_tags" in network_configuration:
+        params["excluded_tags"] = network_configuration["excluded_tags"]
+
+    return params
+
+rule prepare_network:
+    input: unpack(prepare_network_inputs)
+    output: "results/network/{network}.graphml"
+    params: prepare_network_params
+    resources: mem_mb=4096
+    notebook: "notebooks/Prepare Network.ipynb"
+
+# Generate parcels based on demand
+def generate_parcels_inputs(wildcards):
+    demand_configuration = demand_configurations[wildcards["demand"]]
+    population_configuration = population_configurations[demand_configuration["population"]]
+
+    population_prefix = "resources/external/{}/{}".format(
+        demand_configuration["population"], population_configuration["prefix"])
+
+    return {
+        "persons": "{}persons.csv".format(population_prefix),
+        "homes": "{}homes.gpkg".format(population_prefix),
+        "study_area": "resources/spatial/study_area.gpkg",
+        "model": "results/parcel_model.parquet"
+    }
+
+def generate_parcels_params(wildcards):
+    demand_configuration = demand_configurations[wildcards["demand"]]
+    return { 
+        "scaling": demand_configuration["scaling"],
+        "delivery_days": demand_configuration["delivery_days"]
+    }
+
+rule generate_parcels:
+    input: unpack(generate_parcels_inputs)
+    output: "results/parcels/demand/{demand}.gpkg"
+    params: generate_parcels_params
+    resources: mem_mb=4096
+    notebook: "notebooks/Generate Parcels.ipynb"
+
+# Prepare depots
+rule prepare_depots:
+    input: 
+        study_area="resources/spatial/study_area.gpkg",
+        siret="resources/external/sirene/StockEtablissement_utf8.zip",
+        operators="resources/operators.yml"
+    output: "results/depots/prepared.gpkg"
+    resources: mem_mb=4096
+    notebook: "notebooks/Prepare Depots.ipynb"
+
+# Find network locations
+rule assign_parcel_locations:
+    input:
+        graph="results/network/accessible.graphml",
+        input="results/parcels/demand/{demand}.gpkg"
+    output: "results/parcels/located/{demand}.gpkg"
+    resources: mem_mb=6144
+    notebook: "notebooks/Assign Locations.ipynb"
+
+rule assign_depot_locations:
+    input:
+        graph="results/network/accessible.graphml",
+        input="results/depots/prepared.gpkg"
+    output: "results/depots/located.gpkg"
+    resources: mem_mb=6144
+    notebook: "notebooks/Assign Locations.ipynb"
+
+# Assign operators to parcels
+rule assign_parcel_operators:
+    input:
+        parcels="results/parcels/located/{demand}.gpkg",
+        operators="resources/operators.yml",
+    output: "results/parcels/operators/{demand}.gpkg"
+    resources: mem_mb=1024
+    notebook: "notebooks/Assign Operators.ipynb"
+
+# Obtain parcels per operator
+rule extract_parcels_per_operator:
+    input: "results/parcels/operators/{demand}.gpkg"
+    output: "results/parcels/per_operator/{demand}/{operator}.gpkg"
+    params: column="operator", value="{operator}"
+    resources: mem_mb=1024
+    script: "scripts/extract_dataframe.py"
+
+# Obtain depots per operator
+rule extract_depots_per_operator:
+    input: "results/depots/located.gpkg"
+    output: "results/depots/per_operator/{operator}.gpkg"
+    params: column="operator", value="{operator}"
+    resources: mem_mb=1024
+    script: "scripts/extract_dataframe.py"
+
+# Assign depots to the parcels of an operator
+rule assign_depot_per_parcel:
+    input: 
+        graph="results/network/accessible.graphml",
+        depots="results/depots/per_operator/{operator}.gpkg",
+        parcels="results/parcels/per_operator/{demand}/{operator}.gpkg"
+    output: "results/parcels/depots/{demand}/{operator}.gpkg"
+    resources: mem_mb=8192
+    notebook: "notebooks/Assign Depots.ipynb"
+
+# Extract parcels per depot
+rule extract_parcels_per_depot:
+    input: "results/parcels/depots/{demand}/{operator}.gpkg"
+    output: "results/parcels/per_depot/{demand}/{operator}/{depot}.gpkg"
+    params: column="depot_id", value="{depot}"
+    resources: mem_mb=1024
+    script: "scripts/extract_dataframe.py"
+
+# Extract individual depots
+rule extract_individual_depots:
+    input: "results/depots/per_operator/{operator}.gpkg"
+    output: "results/depots/individual/{operator}/{depot}.gpkg"
+    params: column="depot_id", value="{depot}"
+    resources: mem_mb=1024
+    script: "scripts/extract_dataframe.py"
+
+# Perform instance routing on a network
+rule instance_routing:
+    input:
+        graph="results/network/{network}.graphml",
+        depots="results/depots/individual/{operator}/{depot}.gpkg",
+        parcels="results/parcels/per_depot/{demand}/{operator}/{depot}.gpkg"
+    output:
+        "results/matrices/{demand}/{operator}/{depot}/{network}.nc"
+    threads: workflow.cores
+    resources:
+        mem_mb=lambda wildcards, threads: (1 + threads) * 4096
+    notebook: "notebooks/Instance Routing.ipynb"
+
+# Prepare instance configuration (for convenience)
+def prepare_instance_params(wildcards):
+    scenario_configuration = copy.deepcopy(scenario_configurations[wildcards["scenario"]])
+
+    for row in scenario_configuration["vehicle_types"]:
+        row["configuration"] = vehicle_type_configurations[row["type"]]
+
+    return scenario_configuration
+
+rule prepare_instance:
+    params: prepare_instance_params
+    output: "results/instances/{scenario}/{operator}/{depot}.json"
+    resources: mem_mb=1024
+    script: "scripts/save_configuration.py"
+
+# Prepare VROOM
+rule build_vroom:
+    output: "results/vroom/bin/vroom"
+    threads: workflow.cores
+    resources: mem_mb=1024
+    script: "scripts/build_vroom.sh"
+
+# Solve instance
+def solve_instance_inputs(wildcards):
+    scenario_configuration = scenario_configurations[wildcards["scenario"]]
+
+    inputs = {
+        "depots": "results/depots/individual/{}/{}.gpkg".format(
+            wildcards["operator"], wildcards["depot"]
+        ),
+        "parcels": "results/parcels/per_depot/{}/{}/{}.gpkg".format(
+            scenario_configuration["demand"], wildcards["operator"], wildcards["depot"]
+        ),
+        "configuration": "results/instances/{}/{}/{}.json".format(
+            wildcards["scenario"], wildcards["operator"], wildcards["depot"]
+        ),
+        "vroom": "results/vroom/bin/vroom"
+    }
+
+    for row in scenario_configuration["vehicle_types"]:
+        inputs["matrix:{}".format(row["network"])] = "results/matrices/{}/{}/{}/{}.nc".format(
+            scenario_configuration["demand"], wildcards["operator"], wildcards["depot"],
+            row["network"]
+        )
+
+    return inputs
+
+rule solve_instance:
+    input: unpack(solve_instance_inputs)
+    output:
+        stops="results/solutions/{scenario}/{operator}/{depot}/stops.parquet",
+        legs="results/solutions/{scenario}/{operator}/{depot}/legs.parquet",
+        tours="results/solutions/{scenario}/{operator}/{depot}/tours.parquet",
+        vehicles="results/solutions/{scenario}/{operator}/{depot}/vehicles.parquet",
+        instance="results/solutions/{scenario}/{operator}/{depot}/instance.parquet"
+    params:
+        import_path=lambda wildcards: (pathlib.Path(workflow.basedir) / "src").as_posix(),
+        operator="{operator}",
+        depot="{depot}"
+    threads: workflow.cores
+    resources: 
+        mem_mb=lambda wildcards: (len(solve_instance_inputs(wildcards)) - 3) * 3840
+    resources: mem_mb=4096
+    shadow: "shallow" # to keep cache clean
+    notebook: "notebooks/Solve Instance.ipynb"
+
+checkpoint list_depots_per_operator:
+    input: "results/parcels/depots/{demand}/{operator}.gpkg"
+    output: "results/active_depots/{demand}/{operator}.json"
+    notebook: "notebooks/List Depots.ipynb"
+
+def combine_operator_inputs(wildcards):
+    scenario_configuration = scenario_configurations[wildcards["scenario"]]
+
+    with open(checkpoints.list_depots_per_operator.get(
+        demand = scenario_configuration["demand"],
+        operator = wildcards["operator"]
+    ).output[0]) as f:
+        depots = json.load(f)["depots"]
+    
+    inputs = {}
+    for depot in sorted(depots):
+        inputs["stops:{}".format(depot)] = "results/solutions/{}/{}/{}/stops.parquet".format(
+            wildcards["scenario"], wildcards["operator"], depot
+        )
+
+        inputs["legs:{}".format(depot)] = "results/solutions/{}/{}/{}/legs.parquet".format(
+            wildcards["scenario"], wildcards["operator"], depot
+        )
+
+        inputs["tours:{}".format(depot)] = "results/solutions/{}/{}/{}/tours.parquet".format(
+            wildcards["scenario"], wildcards["operator"], depot
+        )
+
+        inputs["vehicles:{}".format(depot)] = "results/solutions/{}/{}/{}/vehicles.parquet".format(
+            wildcards["scenario"], wildcards["operator"], depot
+        )
+
+        inputs["instances:{}".format(depot)] = "results/solutions/{}/{}/{}/instance.parquet".format(
+            wildcards["scenario"], wildcards["operator"], depot
+        )
+    
+    return inputs
+
+rule combine_operator:
+    input: unpack(combine_operator_inputs)
+    output:
+        stops="results/operator_solutions/{scenario}/{operator}.stops.parquet",
+        legs="results/operator_solutions/{scenario}/{operator}.legs.parquet",
+        tours="results/operator_solutions/{scenario}/{operator}.tours.parquet",
+        vehicles="results/operator_solutions/{scenario}/{operator}.vehicles.parquet",
+        instances="results/operator_solutions/{scenario}/{operator}.instances.parquet"
+    resources: mem_mb=1024
+    script: "scripts/combine_solutions.py"
+
+def combine_scenario_inputs(wildcards):
+    inputs = {}
+    for operator in sorted(operator_configurations.keys()):
+        inputs["stops:{}".format(operator)] = "results/operator_solutions/{}/{}.stops.parquet".format(
+            wildcards["scenario"], operator
+        )
+
+        inputs["legs:{}".format(operator)] = "results/operator_solutions/{}/{}.legs.parquet".format(
+            wildcards["scenario"], operator
+        )
+
+        inputs["tours:{}".format(operator)] = "results/operator_solutions/{}/{}.tours.parquet".format(
+            wildcards["scenario"], operator
+        )
+
+        inputs["vehicles:{}".format(operator)] = "results/operator_solutions/{}/{}.vehicles.parquet".format(
+            wildcards["scenario"], operator
+        )
+
+        inputs["instances:{}".format(operator)] = "results/operator_solutions/{}/{}.instances.parquet".format(
+            wildcards["scenario"], operator
+        )
+    
+    return inputs
+
+rule combine_scenario:
+    input: unpack(combine_scenario_inputs)
+    output:
+        stops="results/scenario_solutions/{scenario}.stops.parquet",
+        legs="results/scenario_solutions/{scenario}.legs.parquet",
+        tours="results/scenario_solutions/{scenario}.tours.parquet",
+        vehicles="results/scenario_solutions/{scenario}.vehicles.parquet",
+        instances="results/scenario_solutions/{scenario}.instances.parquet"
+    resources: mem_mb=1024
+    script: "scripts/combine_solutions.py"
+
+# Define combined target to run all scenarios
+def all_inputs(wildcards):
+    return [
+        "results/scenario_solutions/{}.stops.parquet".format(scenario)
+        for scenario in scenario_configurations.keys()
+    ]
+
+rule all:
+    input: unpack(all_inputs)

@@ -1,0 +1,7 @@
+/.snakemake
+/ap2
+/backup
+__pycache__
+.ipynb_checkpoints
+synch.sh
+zenodo

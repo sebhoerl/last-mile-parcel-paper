@@ -1,0 +1,16 @@
+# This file contains the demand configurations for the scenarios in the case study
+demand:
+  baseline_2019: # identifier of the demand scenario
+    population: population_2019 # population on which the demand scenario is based
+    scaling: 1.0
+    delivery_days: 260 # 5 days per week
+
+  today_2024:
+    population: population_2024
+    scaling: 1.35 # demand increase factor
+    delivery_days: 260 # 5 days per week
+  
+  future_2030:
+    population: population_2030
+    scaling: 2.0
+    delivery_days: 260 # 5 days per week

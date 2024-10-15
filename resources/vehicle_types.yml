@@ -1,0 +1,78 @@
+# This file contains information on the available vehicle types
+vehicle_types:
+  small_thermic:
+    capacity: 33
+
+    cost_EUR_per_month: 210.0
+
+    consumption:
+      fuel_L_per_100km: 5.0
+
+    externalities:
+      co2eq_g_per_km: 130.0
+
+  medium_thermic: 
+    capacity: 50
+
+    cost_EUR_per_month: 260.0
+
+    consumption:
+      fuel_L_per_100km: 6.0
+
+    externalities:
+      co2eq_g_per_km: 160.0
+
+  large_thermic: 
+    capacity: 100
+
+    cost_EUR_per_month: 370.0
+
+    consumption:
+      fuel_L_per_100km: 8.0
+
+    externalities:
+      co2eq_g_per_km: 215.0
+
+  small_electric: 
+    electric: true
+    capacity: 33
+
+    cost_EUR_per_month: 260.0
+
+    consumption:
+      electricity_Wh_per_km: 160.0
+
+    maximum_distance_km: 280
+
+  medium_electric: 
+    electric: true
+    capacity: 50
+
+    cost_EUR_per_month: 400.0
+
+    consumption:
+      electricity_Wh_per_km: 200.0
+
+    maximum_distance_km: 240
+
+  large_electric: 
+    electric: true
+    capacity: 100
+
+    cost_EUR_per_month: 800.0
+
+    consumption:
+      electricity_Wh_per_km: 300.0
+
+    maximum_distance_km: 120
+
+cargobike: 
+  capacity: 15
+  
+  maximum_speed_km_h: 25.0 # [2]
+  maximum_distance_per_tour_km: 20 # [2]
+
+  cost_EUR_per_month: 160.0
+
+  consumption:
+    electricity_Wh_per_km: 24.0

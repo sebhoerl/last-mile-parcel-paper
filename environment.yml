@@ -1,0 +1,23 @@
+name: parcels
+channels:
+  - conda-forge
+dependencies:
+  - python=3.12.7
+  - numpy=1.26.3
+  - pandas=2.1.4
+  - geopandas=0.14.1
+  - packaging=23.2
+  - tqdm=4.66.1
+  - jupyter=1.0.0
+  - matplotlib=3.8.2
+  - scipy=1.11.4
+  - requests=2.31.0
+  - networkx=3.2.1
+  - osmnx=1.8.0
+  - netcdf4=1.6.5
+  - xarray=2023.12.0
+  - attrs=23.1.0
+  - orjson=3.9.10
+  - pyarrow=14.0.2
+  - py7zr=0.22.0
+  - bioconda::snakemake=8.0.1

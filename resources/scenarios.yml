@@ -1,0 +1,136 @@
+# This file contains the scenarios used in the case study
+scenarios:
+  baseline_2019: &baseline_2019 # referenced for overrides later on
+    demand: baseline_2019 # demand that is used in that scenario
+
+    vehicle_types: # the list of vehicle types used in this scenario
+      - type: small_thermic
+        network: default
+      - type: medium_thermic
+        network: default
+      - type: large_thermic
+        network: default
+      - type: small_electric
+        network: default
+      - type: medium_electric
+        network: default
+      - type: large_electric
+        network: default
+
+    costs: &baseline_2019_costs
+      driver_salary_EUR_per_month: 2550.0
+      electricity_EUR_per_kWh: 0.1015 # S1 2019 EUROSTAT
+      fuel_EUR_per_L: 1.45
+      co2eq_EUR_per_ton: 0.0
+      thermic_vehicles_factor: 1.0
+      electric_vehicles_factor: 1.0
+
+    externalities:
+      co2eq_g_per_kWh: 90.0
+      fuel_energy_kWh_per_L: 10.0
+
+    timing:
+      pickup_duration: 60.0
+      delivery_duration: 240.0
+
+    delivery_days_per_month: 22 # 5 days per week (52 weeks) divided by 365
+    active_time_h_per_day: 10
+    maximum_speed_km_h: 120.0
+    travel_time_factor: 1.6
+
+  today_2024: &today_2024
+    <<: *baseline_2019
+    demand: today_2024
+
+    costs: &today_2024_costs
+      <<: *baseline_2019_costs
+      electricity_EUR_per_kWh: 0.2756 # S1 2023
+      fuel_EUR_per_L: 1.8 # Feb 2024
+
+  future_2030: &future_2030
+    <<: *today_2024
+    demand: future_2030
+
+  policy_co2_100EUR:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      co2eq_EUR_per_ton: 100.0
+
+  policy_co2_200EUR:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      co2eq_EUR_per_ton: 200.0
+
+  policy_co2_500EUR:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      co2eq_EUR_per_ton: 500.0
+
+  policy_co2_1000EUR:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      co2eq_EUR_per_ton: 1000.0
+
+  policy_thermic_20pct:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      thermic_vehicles_factor: 1.2
+
+  policy_thermic_50pct:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      thermic_vehicles_factor: 1.5
+
+  policy_thermic_100pct:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      thermic_vehicles_factor: 2.0
+
+  policy_automated:
+    <<: *future_2030
+
+    costs:
+      <<: *today_2024_costs
+      driver_salary_EUR_per_month: 0.0
+
+  policy_elez:
+    <<: *future_2030
+
+    vehicle_types:
+      - type: small_thermic
+        network: without_zfe
+      - type: medium_thermic
+        network: without_zfe
+      - type: large_thermic
+        network: without_zfe
+      - type: small_electric
+        network: default
+      - type: medium_electric
+        network: default
+      - type: large_electric
+        network: default
+
+  policy_electric:
+    <<: *future_2030
+
+    vehicle_types:
+      - type: small_electric
+        network: default
+      - type: medium_electric
+        network: default
+      - type: large_electric
+        network: default

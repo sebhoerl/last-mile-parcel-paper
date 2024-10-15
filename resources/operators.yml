@@ -1,0 +1,27 @@
+# This file contains the SIREN enterprise IDs of the major operators and their market shares
+operators:
+  dhl:
+    siren: ["488985771", "494956774"]
+    market_share: 0.0894
+  ups:
+    siren: ["334175221"]
+    market_share: 0.1355
+  fedex:
+    siren: ["973505357"]
+    market_share: 0.0021
+  dpd:
+    siren: ["444420830"]
+    market_share: 0.0944
+  chronopost:
+    siren: ["383960135"]
+    market_share: 0.1498
+  laposte: 
+    siren: ["356000000"]
+    market_share: 0.4008
+    employment_filter: ["00", "01", "02", "05"]
+  colisprive:
+    siren: ["391029345"]
+    market_share: 0.0536
+  gls:
+    siren: ["315334011"]
+    market_share: 0.0693

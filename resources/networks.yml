@@ -1,0 +1,12 @@
+# This file contains the networks that are used in the case study
+networks:
+  # Default network
+  default: {}
+
+  # Restricted network without ZFE
+  without_zfe:
+    excluded_area: zfe
+
+  # Accessible network to all modes (used for bicycles and to assign parcels/depots to nodes)
+  accessible:
+    excluded_tags: ["motorway", "motorway_link", "trunk", "trunk_link"]

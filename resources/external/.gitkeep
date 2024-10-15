@@ -1,0 +1,8 @@
+Here you should put the following folder stucture:
+
+/osm/rhone-alpes-220101.osm.pbf
+/sirene/StockEtablissement_utf8.zip
+/population_2022/lead_2022_100pct_homes.gpkg
+/population_2022/lead_2022_100pct_persons.csv
+/population_2030/lead_2030_100pct_homes.gpkg
+/population_2030/lead_2030_100pct_persons.csv

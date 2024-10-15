@@ -1,0 +1,8 @@
+# This file defines the populations that are use in the case study
+populations:
+  population_2019:
+    prefix: lyon_2019_100pct_
+  population_2024:
+    prefix: lyon_2024_100pct_
+  population_2030:
+    prefix: lyon_2030_100pct_
