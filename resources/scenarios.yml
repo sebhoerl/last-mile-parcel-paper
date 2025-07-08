@@ -18,10 +18,10 @@ scenarios:
         network: default
 
     costs: &baseline_2019_costs
-      driver_salary_EUR_per_month: 2550.0
+      driver_salary_EUR_per_month: 2040.0
       electricity_EUR_per_kWh: 0.1015 # S1 2019 EUROSTAT
       fuel_EUR_per_L: 1.45
-      co2eq_EUR_per_ton: 0.0
+      included_co2eq_EUR_per_ton: 44.6
       thermic_vehicles_factor: 1.0
       electric_vehicles_factor: 1.0
 

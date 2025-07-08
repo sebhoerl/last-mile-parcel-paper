@@ -20,4 +20,5 @@ dependencies:
   - orjson=3.9.10
   - pyarrow=14.0.2
   - py7zr=0.22.0
+  - odfpy=1.4.1
   - bioconda::snakemake=8.0.1
